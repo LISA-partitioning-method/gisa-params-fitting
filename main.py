@@ -41,19 +41,23 @@ def print_info(name, value):
     print("*" * 80)
 
 
+def get_record(Z, charge):
+    return np.load('atom_{}_{}.npz'.format(Z, int(charge)))
+
+
+
 def fit(Z):
-    db = ProAtomDB.from_file("data/atoms.h5")
     db_record_dict = {
         1: (4, [0]),
         # 3: (6, [-2, -1, 0, 1, 2]),
-        3: (6, [-1, 0, 1]),
         # 6: (6, [-2, -1, 0, 1, 2, 3]),
-        6: (6, [-1, 0, 1]),
         # 7: (6, [-2, -1, 0, 1, 2, 3]),
-        7: (6, [-1, 0, 1]),
         # 8: (6, [-2, -1, 0, 1, 2, 3]),
-        8: (6, [-1, 0, 1]),
         # 17: (9, [-2, -1, 0, 1, 2, 3]),
+        3: (6, [-1, 0, 1]),
+        6: (6, [-1, 0, 1]),
+        7: (6, [-1, 0, 1]),
+        8: (6, [-1, 0, 1]),
         17: (9, [-1, 0, 1]),
     }
     initial_guess_dict = {
@@ -79,21 +83,23 @@ def fit(Z):
 
     records = []
     for Z, charge in zip([Z] * len(charges), charges):
-        records.append(db.get_record(Z, charge))
+        record = get_record(Z, charge)
+        records.append(record)
     print("Number of records: ", len(records))
 
     def outer_loop(args):
         diff = 0.0
         Dk_array = np.zeros(len(records))
         for i, record in enumerate(records):
-            weights = record.rgrid.weights
-            radii = record.rgrid.radii
-            nelec = record.number - record.charge
+            weights = record['weights']
+            radii = record['radii']
+            nelec = int(record['nelec'])
 
             def inner_loop(g_args):
                 rho_test, _ = get_proatom_rho(radii, g_args, args)
-                # return np.abs(rho_test - record.rho) * radii**2
-                return np.abs(rho_test - record.rho) * weights
+                # return np.abs(rho_test - record['rho']) * radii**2
+                # return np.abs(rho_test - record['rho']) * radii**2 * weights
+                return np.abs(rho_test - record['rho']) * weights
 
             res = least_squares(
                 inner_loop,
@@ -107,10 +113,11 @@ def fit(Z):
             Dk_array[i] = np.sum(Dk)
 
             rho_test, _ = get_proatom_rho(radii, Dk, args)
-            # diff += (rho_test - record.rho) ** 2 * radii**4
-            diff += (rho_test - record.rho) ** 2 * weights**2
+            # diff += (rho_test - record['rho']) ** 2 * radii**4
+            # diff += (rho_test - record['rho']) ** 2 * weights**2 * radii**4
+            diff += (rho_test - record['rho']) ** 2 * weights**2
 
-        print_info("Sum of Dk for each record", Dk_array)
+        print_info("Sum of Dk for record with {} electrons".format(nelec), Dk_array)
         return np.sqrt(diff)
 
     try:
@@ -127,13 +134,11 @@ def fit(Z):
         print("Error occurred in curve_fit: ", e)
         return
 
-    x_fitted = res.x
-    alphas_fitted = x_fitted
-
-    print_info("alphas_fitted", np.sort(alphas_fitted)[::-1])
     nb_elecs = []
     for i, record in enumerate(records):
-        nb_elecs.append(record.number - record.charge)
+        nb_elecs.append(int(record['nelec']))
+
+    print_info("alphas_fitted", np.sort(res.x)[::-1])
     print_info("nb_elecs", nb_elecs)
 
 
