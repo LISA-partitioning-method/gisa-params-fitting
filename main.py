@@ -46,16 +46,19 @@ def fit(Z):
     db_record_dict = {
         1: (4, [0]),
         3: (6, [-2, -1, 0, 1, 2]),
-        6: (6, [-2, -1, 0, 1, 2, 3]),
-        7: (6, [2, -1, 0, 1, 2, 3]),
-        8: (6, [-2, -1, 0, 1, 2, 3]),
+        # 6: (6, [-2, -1, 0, 1, 2, 3]),
+        6: (6, [-1, 0, 1]),
+        # 7: (6, [-2, -1, 0, 1, 2, 3]),
+        7: (6, [-1, 0, 1]),
+        # 8: (6, [-2, -1, 0, 1, 2, 3]),
+        8: (6, [-1, 0, 1]),
         17: (9, [-2, -1, 0, 1, 2, 3]),
     }
     initial_guess_dict = {
-        1: np.array([5.672, 1.505, 0.5308, 0.2204]),
-        6: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
-        7: np.array([178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]),
-        8: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
+        # 1: np.array([5.672, 1.505, 0.5308, 0.2204]),
+        # 6: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
+        # 7: np.array([178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]),
+        # 8: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
         17: np.array(
             [0.0955, 0.2188, 0.5903, 0.7801, 8.8711, 19.2626, 164.0007, 373.7075, 591.4187]
         ),
@@ -64,9 +67,9 @@ def fit(Z):
     opt_params = {
         1: (1e-5, 1000, 1e-5, 120, 1e-11),
         3: (1e-5, 1000, 1e-5, 120, 1e-11),
-        6: (1e-5, 1000, 1e-5, 120, 1e-11),
-        7: (1e-5, 1000, 1e-5, 120, 1e-11),
-        8: (1e-5, 1000, 1e-5, 120, 1e-11),
+        6: (1e-5, 1000, 1e-5, 120, 1e-8),
+        7: (1e-5, 1000, 1e-5, 120, 1e-8),
+        8: (1e-5, 1000, 1e-5, 120, 1e-8),
         17: (1e-5, 1000, 1e-5, 120, 1e-10),
     }
     nprim = db_record_dict[Z][0]
@@ -77,7 +80,7 @@ def fit(Z):
         records.append(db.get_record(Z, charge))
     print("Number of records: ", len(records))
 
-    def f(args):
+    def outer_loop(args):
         diff = 0.0
         Dk_array = np.zeros(len(records))
         for i, record in enumerate(records):
@@ -85,12 +88,13 @@ def fit(Z):
             radii = record.rgrid.radii
             nelec = record.number - record.charge
 
-            def _g(g_args):
+            def inner_loop(g_args):
                 rho_test, _ = get_proatom_rho(radii, g_args, args)
-                return (rho_test - record.rho) * weights
+                # return np.abs(rho_test - record.rho) * radii**2
+                return np.abs(rho_test - record.rho) * weights
 
             res = least_squares(
-                _g,
+                inner_loop,
                 x0=[nelec / nprim] * nprim,
                 bounds=opt_params[Z][2:4],
                 ftol=opt_params[Z][-1],
@@ -101,17 +105,16 @@ def fit(Z):
             Dk_array[i] = np.sum(Dk)
 
             rho_test, _ = get_proatom_rho(radii, Dk, args)
+            # diff += (rho_test - record.rho) ** 2 * radii**4
             diff += (rho_test - record.rho) ** 2 * weights**2
-            # diff += np.abs(rho_test - record.rho) * weights
 
         print_info("Sum of Dk for each record", Dk_array)
         return np.sqrt(diff)
-        # return diff
 
     try:
         # res = least_squares(f, x0=[1] * nprim, bounds=(1e-2, 300))
         res = least_squares(
-            f,
+            outer_loop,
             # x0=np.linspace(1e-2, 200, nprim),
             x0=initial_guess_dict.get(Z, np.linspace(1e-2, 1e2, nprim)),
             bounds=opt_params[Z][:2],
@@ -127,7 +130,7 @@ def fit(Z):
     x_fitted = res.x
     alphas_fitted = x_fitted
 
-    print_info("alphas_fitted", np.sort(alphas_fitted))
+    print_info("alphas_fitted", np.sort(alphas_fitted)[::-1])
     nb_elecs = []
     for i, record in enumerate(records):
         nb_elecs.append(record.number - record.charge)
@@ -135,7 +138,7 @@ def fit(Z):
 
 
 if __name__ == "__main__":
-    fit(17)
+    fit(8)
     # H: [ 0.2204  0.5308  1.5053  5.6722]
     # Li: [  0.008    0.042    0.1214   2.8398  10.7499  87.8413]
     # C: [  0.0656   0.2868   0.8043  15.6253  42.8325  99.5818]
