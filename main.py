@@ -3,7 +3,6 @@
 from __future__ import print_function, division
 import numpy as np
 from scipy.optimize import least_squares
-from horton import *
 
 np.set_printoptions(precision=4, suppress=True, linewidth=np.inf)
 
