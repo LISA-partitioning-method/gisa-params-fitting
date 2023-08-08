@@ -21,11 +21,11 @@ def to_npz(record):
         'nelec':nelec,
         'rho':rho
     }
-    np.savez('atom_{}_{}.npz'.format(number, int(charge)), **data)
+    np.savez('../atom_{}_{}.npz'.format(number, int(charge)), **data)
 
 
 def main():
-    db = ProAtomDB.from_file("data/atoms.h5")
+    db = ProAtomDB.from_file("atoms.h5")
     db_record_dict = {
         1: [0],
         3: [-2, -1, 0, 1, 2],
