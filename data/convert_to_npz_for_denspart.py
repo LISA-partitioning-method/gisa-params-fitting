@@ -17,11 +17,11 @@ def to_npz(record):
     data = {
         "weights": weights * 4 * np.pi * radii**2,
         "points": radii,
-        "atnums": [number],
+        "atnums": np.array([number]),
         "charge": charge,
         "nelec": nelec,
         "density": rho,
-        "atcoords": np.array([[0,0,0]])
+        "atcoords": np.array([[0,0,0]], dtype=float)
     }
     np.savez("../denspart_atom_{}_{}.npz".format(number, int(charge)), **data)
 
@@ -30,11 +30,11 @@ def main():
     db = ProAtomDB.from_file("atoms.h5")
     db_record_dict = {
         1: [0],
-        3: [-2, -1, 0, 1, 2],
-        6: [-2, -1, 0, 1, 2, 3],
-        7: [-2, -1, 0, 1, 2, 3],
-        8: [-2, -1, 0, 1, 2, 3],
-        17: [-2, -1, 0, 1, 2, 3],
+        # 3: [-2, -1, 0, 1, 2],
+        # 6: [-2, -1, 0, 1, 2, 3],
+        # 7: [-2, -1, 0, 1, 2, 3],
+        # 8: [-2, -1, 0, 1, 2, 3],
+        # 17: [-2, -1, 0, 1, 2, 3],
     }
 
     records = []
