@@ -17,7 +17,7 @@ def to_npz(record):
     data = {
         "weights": weights * 4 * np.pi * radii**2,
         "points": radii,
-        "number": number,
+        "atnums": number,
         "charge": charge,
         "nelec": nelec,
         "density": rho,
