@@ -20,8 +20,8 @@ def to_npz(record):
         "atnums": np.array([number]),
         "charge": charge,
         "nelec": nelec,
-        "density": rho,
-        "atcoords": np.array([[0,0,0]], dtype=float)
+        "density": rho.reshape((-1, 1)),
+        "atcoords": np.array([[0]], dtype=float)
     }
     np.savez("../denspart_atom_{}_{}.npz".format(number, int(charge)), **data)
 
