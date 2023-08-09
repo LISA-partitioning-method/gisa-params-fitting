@@ -15,7 +15,6 @@ def to_npz(record):
     rho = record.rho
     nelec = number - charge
     res = np.einsum('i,i', weights, rho)
-    print(res)
     # Note: 4*np.pi*r**2 has been included in weights.
     data = {
         "weights": weights,
@@ -33,11 +32,11 @@ def main():
     db = ProAtomDB.from_file("atoms.h5")
     db_record_dict = {
         1: [0],
-        # 3: [-2, -1, 0, 1, 2],
-        # 6: [-2, -1, 0, 1, 2, 3],
-        # 7: [-2, -1, 0, 1, 2, 3],
-        # 8: [-2, -1, 0, 1, 2, 3],
-        # 17: [-2, -1, 0, 1, 2, 3],
+        3: [-2, -1, 0, 1, 2],
+        6: [-2, -1, 0, 1, 2, 3],
+        7: [-2, -1, 0, 1, 2, 3],
+        8: [-2, -1, 0, 1, 2, 3],
+        17: [-2, -1, 0, 1, 2, 3],
     }
 
     records = []

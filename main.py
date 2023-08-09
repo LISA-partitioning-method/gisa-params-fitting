@@ -41,7 +41,7 @@ def print_info(name, value):
 
 
 def get_record(Z, charge):
-    return np.load('atom_{}_{}.npz'.format(Z, int(charge)))
+    return np.load('denspart_atom_{}_{}.npz'.format(Z, int(charge)))
 
 
 
@@ -91,14 +91,13 @@ def fit(Z):
         Dk_array = np.zeros(len(records))
         for i, record in enumerate(records):
             weights = record['weights']
-            radii = record['radii']
+            radii = record['points']
             nelec = int(record['nelec'])
 
             def inner_loop(g_args):
                 rho_test, _ = get_proatom_rho(radii, g_args, args)
-                # return np.abs(rho_test - record['rho']) * radii**2
-                # return np.abs(rho_test - record['rho']) * radii**2 * weights
-                return np.abs(rho_test - record['rho']) * weights
+                # 4 * np.pi * r ** 2 has been included in weights
+                return np.abs(rho_test - record['density']) * weights
 
             res = least_squares(
                 inner_loop,
@@ -112,9 +111,7 @@ def fit(Z):
             Dk_array[i] = np.sum(Dk)
 
             rho_test, _ = get_proatom_rho(radii, Dk, args)
-            # diff += (rho_test - record['rho']) ** 2 * radii**4
-            # diff += (rho_test - record['rho']) ** 2 * weights**2 * radii**4
-            diff += (rho_test - record['rho']) ** 2 * weights**2
+            diff += (rho_test - record['density']) ** 2 * weights**2
 
         print_info("Sum of Dk for record with {} electrons".format(nelec), Dk_array)
         return np.sqrt(diff)
