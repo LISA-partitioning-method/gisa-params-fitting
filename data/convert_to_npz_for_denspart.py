@@ -13,16 +13,14 @@ def to_npz(record):
     number = record.number
     charge = record.charge
     rho = record.rho
-    rho = rho.reshape((-1, 1))
-    print(rho.shape)
     nelec = number - charge
     data = {
         "weights": weights * 4 * np.pi * radii**2,
-        "points": radii,
+        "points": radii.reshape((-1, 1)),
         "atnums": np.array([number]),
         "charge": charge,
         "nelec": nelec,
-        "density": rho,
+        "density": rho.reshape((-1,1)),
         "atcoords": np.array([[0]], dtype=float)
     }
     np.savez("../denspart_atom_{}_{}.npz".format(number, int(charge)), **data)
