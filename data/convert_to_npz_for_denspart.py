@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function, division
 import numpy as np
 from horton import *
 
@@ -14,14 +15,14 @@ def to_npz(record):
     rho = record.rho
     nelec = number - charge
     data = {
-        "weights": weights,
-        "radii": radii,
+        "weights": weights * 4 * np.pi * radii**2,
+        "points": radii,
         "number": number,
         "charge": charge,
         "nelec": nelec,
-        "rho": rho,
+        "density": rho,
     }
-    np.savez(f"../atom_{number}_{int(charge)}.npz", **data)
+    np.savez("../denspart_atom_{}_{}.npz".format(number, int(charge)), **data)
 
 
 def main():
@@ -35,6 +36,7 @@ def main():
         17: [-2, -1, 0, 1, 2, 3],
     }
 
+    records = []
     for Z, charges in db_record_dict.items():
         for Z, charge in zip([Z] * len(charges), charges):
             record = db.get_record(Z, charge)
