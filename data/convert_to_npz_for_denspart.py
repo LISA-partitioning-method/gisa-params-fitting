@@ -14,8 +14,11 @@ def to_npz(record):
     charge = record.charge
     rho = record.rho
     nelec = number - charge
+    res = np.einsum('i,i', weights, rho)
+    print(res)
+    # Note: 4*np.pi*r**2 has been included in weights.
     data = {
-        "weights": weights * 4 * np.pi * radii**2,
+        "weights": weights,
         "points": radii,
         "atnums": np.array([number]),
         "charge": charge,
