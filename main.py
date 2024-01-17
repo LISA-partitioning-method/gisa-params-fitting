@@ -225,7 +225,7 @@ if __name__ == "__main__":
     import json
 
     data = {}
-    for Z in [1, 3, 6, 7, 8, 16, 17, 35]:
+    for Z in [1, 3, 6, 7, 8, 9, 14, 16, 17, 35]:
         orders, coeffs, pops = fit(Z)
         combined = sorted(zip(coeffs, pops, strict=False), key=lambda x: x[0], reverse=True)
         sorted_coeffs, sorted_pops = zip(*combined, strict=False)
