@@ -295,8 +295,13 @@ class ProModel(metaclass=ProModelMeta):
         return gradient
 
     @classmethod
-    def from_pars(cls, pops, coeffs):
+    def from_pars_gauss(cls, pops, coeffs):
         fns = [GaussianFunction1D((d, alpha)) for d, alpha in zip(pops, coeffs, strict=True)]
+        return cls(fns)
+
+    @classmethod
+    def from_pars_slater(cls, pops, coeffs):
+        fns = [ExponentialFunction1D((d, alpha)) for d, alpha in zip(pops, coeffs, strict=True)]
         return cls(fns)
 
 

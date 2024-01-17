@@ -1,33 +1,12 @@
 #!/usr/bin/env python
-
 import numpy as np
+import qpsolvers
 from scipy.optimize import least_squares
 
+from general import ProModel
+
 np.set_printoptions(precision=4, suppress=True, linewidth=np.inf)
-
-
-def get_pro_a_k(D_k, alpha_k, r, nderiv=0):
-    """The primitive Gaussian function with exponent of `alpha_k`."""
-    f = D_k * (alpha_k / np.pi) ** 1.5 * np.exp(-alpha_k * r**2)
-    if nderiv == 0:
-        return f
-    elif nderiv == 1:
-        return -2 * alpha_k * r * f
-    else:
-        raise NotImplementedError
-
-
-def get_proatom_rho(r, prefactors, alphas):
-    """Get proatom density for atom `iatom`."""
-    nprim = len(prefactors)
-    # r = rgrid.radii
-    y = np.zeros(len(r), float)
-    d = np.zeros(len(r), float)
-    for k in range(nprim):
-        D_k, alpha_k = prefactors[k], alphas[k]
-        y += get_pro_a_k(D_k, alpha_k, r, 0)
-        d += get_pro_a_k(D_k, alpha_k, r, 1)
-    return y, d
+np.random.seed = 10
 
 
 def print_info(name, value):
@@ -43,14 +22,138 @@ def get_record(Z, charge):
     return np.load(f"denspart_atom_{Z}_{int(charge)}.npz")
 
 
+def opt_pop(record, points, weights, coeffs, pop0, pop_bounds, ftol, xtol, gtol):
+    def f(par_pops):
+        pro_model = ProModel.from_pars_gauss(par_pops, coeffs)
+        rho = pro_model.compute_proatom(points, None)
+        # 4 * np.pi * r ** 2 has been included in weights
+        return (rho - record["density"]) * weights
+
+    opt_pops = least_squares(f, x0=pop0, bounds=pop_bounds, ftol=ftol, xtol=xtol, gtol=gtol)
+    return opt_pops.x
+
+
+def opt_propars_qp_interface(
+    bs_funcs,
+    rho,
+    propars,
+    weights,
+    alphas,
+    solver="quadprog",
+    **solver_options,
+):
+    """
+    Optimize pro-atom parameters using quadratic-programming implemented in the `CVXOPT` package.
+
+    Parameters
+    ----------
+    bs_funcs : 2D np.ndarray
+        Basis functions array with shape (M, N), where 'M' is the number of basis functions
+        and 'N' is the number of grid points.
+    rho : 1D np.ndarray
+        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
+    propars : 1D np.ndarray
+        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
+    weights : 1D np.ndarray
+        Weights for integration, including the angular part (4πr²), with shape (N,).
+    alphas : 1D np.ndarray
+        The Gaussian exponential coefficients.
+    solver : str
+        The name of sovler. See `qpsovler.solve_qp`.
+
+    Returns
+    -------
+    1D np.ndarray
+        Optimized proatom parameters.
+
+    Raises
+    ------
+    RuntimeError
+        If the inner iteration does not converge.
+
+    """
+    nprim, npt = bs_funcs.shape
+
+    P = (
+        2
+        / np.pi**1.5
+        * (alphas[:, None] * alphas[None, :]) ** 1.5
+        / (alphas[:, None] + alphas[None, :]) ** 1.5
+    )
+    P = (P + P.T) / 2
+
+    q = -2 * np.einsum("i,ni,i->n", weights, bs_funcs, rho)
+
+    # Linear inequality constraints
+    G = -np.identity(nprim)
+    h = np.zeros((nprim, 1))
+
+    # Linear equality constraints
+    A = np.ones((1, nprim))
+    pop = np.einsum("i,i", weights, rho)
+    b = np.ones((1, 1)) * pop
+
+    # TODO: the initial values are set to zero for all propars and no threshold setting is
+    # available.
+    result = qpsolvers.solve_qp(
+        P,
+        q,
+        G,
+        h,
+        A,
+        b,
+        solver=solver,
+        initvals=np.zeros_like(propars),
+        **solver_options,
+    )
+    return result
+
+
+def opt_coeff(records, pop_bounds, coeff0, coeff_bounds, ftol, xtol, gtol):
+    def f(par_coeffs):
+        diff = 0.0
+        charges = np.zeros(len(records))
+        for i, record in enumerate(records):
+            weights, points = record["weights"], record["points"]
+            nelec = int(record["nelec"])
+
+            nprim = len(par_coeffs)
+            pop0 = [nelec / nprim] * nprim
+
+            opt_pops = opt_pop(
+                record, points, weights, par_coeffs, pop0, pop_bounds, ftol, xtol, gtol
+            )
+
+            ## This doesn't work
+            # tmp_model = ProModel.from_pars_gauss(np.ones_like(par_coeffs), par_coeffs)
+            # bs_funcs = np.asarray([gauss.compute(points) for gauss in tmp_model.fns])
+            # rho = record["density"]
+            # pop0 = np.asarray([nelec / nprim] * nprim)
+            # opt_pops = opt_propars_qp_interface(
+            #     bs_funcs, rho, pop0, weights, par_coeffs, solver="cvxopt"
+            # )
+            # rho_test = np.einsum("np,n->p", bs_funcs, opt_pops)
+
+            model = ProModel.from_pars_gauss(opt_pops, par_coeffs)
+            rho_test = model.compute_proatom(points)
+
+            rho = record["density"]
+            charges[i] = np.sum(opt_pops)
+            diff += (rho_test - rho) ** 2 * weights**2
+
+        print_info("Sum of Dk for atom: ", charges)
+        return np.sqrt(diff)
+
+    opt_pars = least_squares(
+        f, x0=coeff0, bounds=coeff_bounds, ftol=ftol, xtol=xtol, gtol=gtol, verbose=2
+    )
+
+    return opt_pars.x
+
+
 def fit(Z):
     db_record_dict = {
         1: (4, [0]),
-        # 3: (6, [-2, -1, 0, 1, 2]),
-        # 6: (6, [-2, -1, 0, 1, 2, 3]),
-        # 7: (6, [-2, -1, 0, 1, 2, 3]),
-        # 8: (6, [-2, -1, 0, 1, 2, 3]),
-        # 17: (9, [-2, -1, 0, 1, 2, 3]),
         3: (6, [-1, 0, 1]),
         6: (6, [-1, 0, 1]),
         7: (6, [-1, 0, 1]),
@@ -61,11 +164,14 @@ def fit(Z):
         17: (9, [-1, 0, 1]),
         35: (12, [-1, 0, 1]),
     }
-    initial_guess_dict = {
-        # 1: np.array([5.672, 1.505, 0.5308, 0.2204]),
-        # 6: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
-        # 7: np.array([178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]),
-        # 8: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
+
+    initial_guess_dict = {}
+
+    known_guess_dict = {
+        1: np.array([5.672, 1.505, 0.5308, 0.2204]),
+        6: np.array([148.3, 42.19, 15.33, 6.146, 0.7846, 0.2511]),
+        7: np.array([178.0, 52.42, 19.87, 1.276, 0.6291, 0.2857]),
+        8: np.array([220.1, 65.66, 25.98, 1.685, 0.6860, 0.2311]),
     }
 
     opt_params = {
@@ -84,75 +190,48 @@ def fit(Z):
     charges = db_record_dict[Z][1]
 
     records = []
+    nb_elecs = []
     for atnum, charge in zip([Z] * len(charges), charges, strict=True):
         record = get_record(atnum, charge)
         records.append(record)
+        elec = int(record["nelec"])
+        nb_elecs.append(elec)
     print("Number of records: ", len(records))
 
-    def outer_loop(args):
-        diff = 0.0
-        Dk_array = np.zeros(len(records))
-        for i, record in enumerate(records):
-            weights = record["weights"]
-            radii = record["points"]
-            nelec = int(record["nelec"])
+    coeff_bounds = opt_params[Z][:2]
+    pop_bounds = opt_params[Z][2:4]
+    ftol = xtol = gtol = opt_params[Z][-1]
+    if Z in known_guess_dict:
+        coeffs = known_guess_dict[Z]
+    else:
+        coeff0 = initial_guess_dict.get(Z, np.linspace(1e-2, 1e2, nprim))
+        coeffs = opt_coeff(records, pop_bounds, coeff0, coeff_bounds, ftol, xtol, gtol)
 
-            def inner_loop(g_args):
-                rho_test, _ = get_proatom_rho(radii, g_args, args)
-                # 4 * np.pi * r ** 2 has been included in weights
-                return np.abs(rho_test - record["density"]) * weights
+    record = get_record(Z, 0)
+    weights = record["weights"]
+    points = record["points"]
+    pop0 = [Z / nprim] * nprim
 
-            res = least_squares(
-                inner_loop,
-                x0=[nelec / nprim] * nprim,
-                bounds=opt_params[Z][2:4],
-                ftol=opt_params[Z][-1],
-                xtol=opt_params[Z][-1],
-                gtol=opt_params[Z][-1],
-            )
-            Dk = res.x
-            Dk_array[i] = np.sum(Dk)
-
-            rho_test, _ = get_proatom_rho(radii, Dk, args)
-            diff += (rho_test - record["density"]) ** 2 * weights**2
-
-        print_info(f"Sum of Dk for record with {nelec} electrons", Dk_array)
-        return np.sqrt(diff)
-
-    try:
-        res = least_squares(
-            outer_loop,
-            x0=initial_guess_dict.get(Z, np.linspace(1e-2, 1e2, nprim)),
-            bounds=opt_params[Z][:2],
-            ftol=opt_params[Z][-1],
-            xtol=opt_params[Z][-1],
-            gtol=opt_params[Z][-1],
-            verbose=2,
-        )
-    except RuntimeError as e:
-        print("Error occurred in least_squares_fit: ", e)
-        return
-
-    nb_elecs = []
-    for _i, record in enumerate(records):
-        nb_elecs.append(int(record["nelec"]))
-
-    print_info("alphas_fitted", np.sort(res.x)[::-1])
+    initial_pop = opt_pop(record, points, weights, coeffs, pop0, pop_bounds, ftol, xtol, gtol)
+    print_info("Optimized exp coeffs: ", coeffs)
     print_info("nb_elecs", nb_elecs)
+    print("Optimized initial pops: ")
+    print(initial_pop)
+
+    return np.asarray([2.0] * nprim), coeffs, initial_pop
 
 
 if __name__ == "__main__":
-    fit(14)
-    # H: [5.6774 1.5061 0.531  0.2204]
-    # C: [133.3789  38.2891  14.1038   0.8005   0.3076   0.1036]
-    # N: [173.6656  49.5977  18.7949   1.1963   0.4636   0.1496]
-    # O: [229.1104  66.0381  24.8347   1.7326   0.7047   0.231 ]
+    import json
 
-    # Li: [60.3528 14.895   5.0545  1.9759  0.0971  0.0314]
-    # F: [319.6233  85.5603  31.7878   2.4347   1.0167   0.3276]
-    # Si: [374.1708 118.753   69.9363   9.0231   8.3656   4.0225   0.3888   0.2045   0.0711]
-    # Si new: [592.0697 213.778   88.4554  71.7604   8.3302   4.0274   0.4191   0.2271   0.076 ]
-    # S: [715.0735 240.4533 120.1752  14.3796   7.0821   0.5548   0.5176   0.2499   0.1035]
-    # Cl: [1139.4058  379.1381  151.8297   34.9379   19.5054    8.9484    0.6579    0.3952  0.1635]
-    # Br: [1026.4314, 118.9876, 115.0694, 82.964, 66.2115, 64.8824, 6.4775, 5.2615, 1.6828, 0.5514,
-    # 0.2747, 0.1136,]
+    data = {}
+    for Z in [1, 3, 6, 7, 8, 16, 17, 35]:
+        orders, coeffs, pops = fit(Z)
+        combined = sorted(zip(coeffs, pops, strict=False), key=lambda x: x[0], reverse=True)
+        sorted_coeffs, sorted_pops = zip(*combined, strict=False)
+        sorted_coeffs = [round(c, 4) for c in sorted_coeffs]
+        sorted_pops = [round(c, 4) for c in sorted_pops]
+        data[Z] = [list(orders), list(sorted_coeffs), list(sorted_pops)]
+
+    with open("gauss.json", "w") as f:
+        json.dump(data, f, indent=4)
