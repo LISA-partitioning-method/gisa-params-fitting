@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import numpy as np
-import qpsolvers
 from scipy.optimize import least_squares
 
 from general import ProModel
@@ -33,82 +32,6 @@ def opt_pop(record, points, weights, coeffs, pop0, pop_bounds, ftol, xtol, gtol)
     return opt_pops.x
 
 
-def opt_propars_qp_interface(
-    bs_funcs,
-    rho,
-    propars,
-    weights,
-    alphas,
-    solver="quadprog",
-    **solver_options,
-):
-    """
-    Optimize pro-atom parameters using quadratic-programming implemented in the `CVXOPT` package.
-
-    Parameters
-    ----------
-    bs_funcs : 2D np.ndarray
-        Basis functions array with shape (M, N), where 'M' is the number of basis functions
-        and 'N' is the number of grid points.
-    rho : 1D np.ndarray
-        Spherically-averaged atomic density as a function of radial distance, with shape (N,).
-    propars : 1D np.ndarray
-        Pro-atom parameters with shape (M). 'M' is the number of basis functions.
-    weights : 1D np.ndarray
-        Weights for integration, including the angular part (4πr²), with shape (N,).
-    alphas : 1D np.ndarray
-        The Gaussian exponential coefficients.
-    solver : str
-        The name of sovler. See `qpsovler.solve_qp`.
-
-    Returns
-    -------
-    1D np.ndarray
-        Optimized proatom parameters.
-
-    Raises
-    ------
-    RuntimeError
-        If the inner iteration does not converge.
-
-    """
-    nprim, npt = bs_funcs.shape
-
-    P = (
-        2
-        / np.pi**1.5
-        * (alphas[:, None] * alphas[None, :]) ** 1.5
-        / (alphas[:, None] + alphas[None, :]) ** 1.5
-    )
-    P = (P + P.T) / 2
-
-    q = -2 * np.einsum("i,ni,i->n", weights, bs_funcs, rho)
-
-    # Linear inequality constraints
-    G = -np.identity(nprim)
-    h = np.zeros((nprim, 1))
-
-    # Linear equality constraints
-    A = np.ones((1, nprim))
-    pop = np.einsum("i,i", weights, rho)
-    b = np.ones((1, 1)) * pop
-
-    # TODO: the initial values are set to zero for all propars and no threshold setting is
-    # available.
-    result = qpsolvers.solve_qp(
-        P,
-        q,
-        G,
-        h,
-        A,
-        b,
-        solver=solver,
-        initvals=np.zeros_like(propars),
-        **solver_options,
-    )
-    return result
-
-
 def opt_coeff(records, pop_bounds, coeff0, coeff_bounds, ftol, xtol, gtol):
     def f(par_coeffs):
         diff = 0.0
@@ -123,16 +46,6 @@ def opt_coeff(records, pop_bounds, coeff0, coeff_bounds, ftol, xtol, gtol):
             opt_pops = opt_pop(
                 record, points, weights, par_coeffs, pop0, pop_bounds, ftol, xtol, gtol
             )
-
-            ## This doesn't work
-            # tmp_model = ProModel.from_pars_gauss(np.ones_like(par_coeffs), par_coeffs)
-            # bs_funcs = np.asarray([gauss.compute(points) for gauss in tmp_model.fns])
-            # rho = record["density"]
-            # pop0 = np.asarray([nelec / nprim] * nprim)
-            # opt_pops = opt_propars_qp_interface(
-            #     bs_funcs, rho, pop0, weights, par_coeffs, solver="cvxopt"
-            # )
-            # rho_test = np.einsum("np,n->p", bs_funcs, opt_pops)
 
             model = ProModel.from_pars_gauss(opt_pops, par_coeffs)
             rho_test = model.compute_proatom(points)
