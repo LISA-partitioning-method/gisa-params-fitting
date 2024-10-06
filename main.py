@@ -68,6 +68,7 @@ def fit(Z):
     db_record_dict = {
         1: (4, [0]),
         3: (6, [-1, 0, 1]),
+        5: (6, [-1, 0, 1]),
         6: (6, [-1, 0, 1]),
         7: (6, [-1, 0, 1]),
         8: (6, [-1, 0, 1]),
@@ -90,6 +91,7 @@ def fit(Z):
     opt_params = {
         1: (1e-5, 1000, 1e-5, 120, 1e-8),
         3: (1e-5, 1000, 1e-5, 120, 1e-8),
+        5: (1e-5, 1000, 1e-5, 120, 1e-8),
         6: (1e-5, 1000, 1e-5, 120, 1e-8),
         7: (1e-5, 1000, 1e-5, 120, 1e-8),
         8: (1e-5, 1000, 1e-5, 120, 1e-8),
@@ -138,7 +140,7 @@ if __name__ == "__main__":
     import json
 
     data = {}
-    for Z in [1, 3, 6, 7, 8, 9, 14, 16, 17, 35]:
+    for Z in [1, 3, 5, 6, 7, 8, 9, 14, 16, 17, 35]:
         orders, coeffs, pops = fit(Z)
         combined = sorted(zip(coeffs, pops, strict=False), key=lambda x: x[0], reverse=True)
         sorted_coeffs, sorted_pops = zip(*combined, strict=False)
