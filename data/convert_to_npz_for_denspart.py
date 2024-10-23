@@ -26,7 +26,7 @@ def to_npz(record):
         "density": rho,
         "atcoords": np.array([[0]], dtype=float),
     }
-    np.savez("../denspart_atom_{}_{}.npz".format(number, int(charge)), **data)
+    np.savez("../src/denspart_atom_{}_{}.npz".format(number, int(charge)), **data)
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
     for Z, charges in db_record_dict.items():
         for Z, charge in zip([Z] * len(charges), charges):
             record = db.get_record(Z, charge)
-            fname = "../denspart_atom_{}_{}.npz".format(Z, int(charge))
+            fname = "../src/denspart_atom_{}_{}.npz".format(Z, int(charge))
             if not os.path.exists(fname):
                 to_npz(record)
 
