@@ -1,4 +1,4 @@
-# GISA Parameter Fitting
+# GISA parameter fitting
 
 This Python project aims to fit parameters for the GISA (Gaussian Iterative Stockholder Analysis) method using spherically averaged atomic densities. The exponents, $\alpha_{a,k}$, of the Gaussian functions for each element in the GISA model are optimized using the least-squares method.
 
@@ -8,28 +8,22 @@ The optimization was performed for several atoms with varying charges, and the c
 
 ### Atomic data calculation
 
-The atomic densities for different states of the elements (cation, neutral atom, and anion) are computed using GAUSSIAN16 at the `PBE0/6-311+G(d,p)` level of theory. The spherically averaged densities were computed using the Horton 2.1.1 Python package.
+The atomic densities for different states of the elements (cation, neutral atom, and anion) are computed using GAUSSIAN16 at the `PBE0/6-311+G(d,p)` level of theory. The spherically averaged densities were computed using the [`Horton 2.1.1`](https://theochem.github.io/horton/2.1.1/index.html) Python package.
 
 ### Objective function
 
 The fitted parameters optimize the exponents for a compact Gaussian s-type density basis set to accurately represent these spherically averaged densities. More details are presented below.
 
 The spherical average of atomic density for element $a$ with charge $q$ at the origin (0,0,0) is defined as:
-$$
-\langle \rho_{a,q} \rangle_s (r) = \int_{\Omega} \rho_a(\vec{r}) d\Omega
-$$
+$$\langle \rho_{a,q} \rangle_s (r) = \int_{\Omega} \rho_a(\vec{r}) d\Omega$$
 where $\Omega$ represents the angular-dependent coordinates.
 
 The pro-atomic density is modeled as a sum of 1D Gaussian functions:
-$$
-\rho_{a,q}^0 (r = \|\vec{r} - \vec{R}_a \|) = \sum_{k} c_{a,k} \exp^{-\alpha_{a,k} r^2}
-$$
+$$\rho_{a,q}^0 (r = \|\vec{r} - \vec{R}_a \|) = \sum_{k} c_{a,k} \exp^{-\alpha_{a,k} r^2}$$
 where $\vec{R}_a = (0,0,0)$ is the atomic coordinate.
 
 The objective function for element $a$ is defined as:
-$$
-\sum_{q=-1, 0, 1} \| \langle \rho_{a,q} \rangle_s (r) -  \sum_{k} c_{a,k} \exp^{-\alpha_{a,k} r^2 } \|^2
-$$
+$$\sum_{q=-1, 0, 1} \| \langle \rho_{a,q} \rangle_s (r) -  \sum_{k} c_{a,k} \exp^{-\alpha_{a,k} r^2 } \|^2$$
 
 This approach involves fitting isolated atomic data for 0, +1, and -1 charges using the least-squares method.
 
@@ -78,7 +72,7 @@ The `gauss.json` file is generated when the program finishes successfully.
 
 It should be noted that the results may not be the same as those used in ``Horton-Part`` due to differences in the objective function.
 
-### The exponents and initial values used in `Horton-Part`
+### The exponents and initial values used in [Horton-Part](https://github.com/LISA-partitioning-method/horton-part)
 
 The exponents for the Gaussian s-type density basis in both GISA and LISA methods (in atomic units).
 
