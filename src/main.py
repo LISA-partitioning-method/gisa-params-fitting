@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.optimize import least_squares
 
-from general import ProModel
+from utils import ProModel
 
 np.set_printoptions(precision=4, suppress=True, linewidth=np.inf)
 np.random.seed = 10
